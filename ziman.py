@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ZIVPN Account Manager (ZIMAN) - Enhanced Version
+ZIVPN Account Manager (ZIMAN) - Enhanced Version with Auto Dependency Installation
 Professional CLI tool for managing ZIVPN with comprehensive service information
 """
 
@@ -11,15 +11,154 @@ import random
 import string
 import subprocess
 import time
-import psutil
+import importlib
+import importlib.util
 from datetime import datetime
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any
 import socket
 
 CONFIG_FILE = "/etc/zivpn/config.json"
 SERVICE_NAME = "zivpn"
 LOG_FILE = "/var/log/zivpn.log"
 CONFIG_DIR = "/etc/zivpn/"
+
+# ======= Dependency Management =======
+class DependencyManager:
+    """Handle dependency checking and automatic installation"""
+    
+    REQUIRED_PACKAGES = [
+        "psutil",  # For system monitoring
+    ]
+    
+    SYSTEM_PACKAGES = {
+        "psutil": ["python3-psutil", "psutil"],  # Different distros may have different package names
+    }
+    
+    @staticmethod
+    def check_and_install():
+        """Check for required packages and install if missing"""
+        missing_packages = []
+        
+        print("🔍 Checking dependencies...")
+        
+        for package in DependencyManager.REQUIRED_PACKAGES:
+            if not DependencyManager.is_package_installed(package):
+                missing_packages.append(package)
+        
+        if missing_packages:
+            print(f"⚠️  Missing packages: {', '.join(missing_packages)}")
+            if DependencyManager.ask_permission():
+                DependencyManager.install_missing_packages(missing_packages)
+            else:
+                print("❌ Cannot continue without required dependencies.")
+                print("You can manually install them with:")
+                for pkg in missing_packages:
+                    print(f"  pip3 install {pkg}")
+                sys.exit(1)
+        else:
+            print("✓ All dependencies are installed")
+    
+    @staticmethod
+    def is_package_installed(package_name: str) -> bool:
+        """Check if a Python package is installed"""
+        try:
+            spec = importlib.util.find_spec(package_name)
+            return spec is not None
+        except ImportError:
+            return False
+    
+    @staticmethod
+    def ask_permission() -> bool:
+        """Ask user for permission to install dependencies"""
+        if os.geteuid() != 0:
+            print("\n⚠️  Root privileges required for package installation.")
+            print("Please run this script with sudo or install manually.")
+            return False
+        
+        response = input("\nDo you want to install missing dependencies automatically? (y/N): ").strip().lower()
+        return response in ['y', 'yes']
+    
+    @staticmethod
+    def install_missing_packages(packages: List[str]):
+        """Install missing packages using pip"""
+        print("\n📦 Installing missing dependencies...")
+        
+        for package in packages:
+            print(f"Installing {package}...")
+            try:
+                # Try pip install first
+                result = subprocess.run(
+                    [sys.executable, "-m", "pip", "install", package],
+                    capture_output=True,
+                    text=True
+                )
+                
+                if result.returncode == 0:
+                    print(f"✓ {package} installed successfully via pip")
+                else:
+                    # Try system package manager as fallback
+                    print(f"⚠️  Pip install failed, trying system package manager...")
+                    DependencyManager.install_via_system_package_manager(package)
+                    
+            except Exception as e:
+                print(f"❌ Failed to install {package}: {e}")
+                print(f"Please install manually: sudo pip3 install {package}")
+                continue
+        
+        print("\n✅ Dependency installation completed")
+        print("Restarting script...")
+        
+        # Restart script with new dependencies
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+    
+    @staticmethod
+    def install_via_system_package_manager(package: str):
+        """Install package using system package manager"""
+        # Detect package manager
+        package_managers = [
+            ("apt-get", ["apt-get", "install", "-y"]),
+            ("yum", ["yum", "install", "-y"]),
+            ("dnf", ["dnf", "install", "-y"]),
+            ("pacman", ["pacman", "-S", "--noconfirm"]),
+            ("apk", ["apk", "add"]),
+            ("zypper", ["zypper", "install", "-y"]),
+        ]
+        
+        for pm_name, pm_cmd in package_managers:
+            if DependencyManager.command_exists(pm_name):
+                system_package = DependencyManager.SYSTEM_PACKAGES.get(package, [package])
+                
+                for pkg in system_package:
+                    try:
+                        cmd = pm_cmd + [pkg]
+                        result = subprocess.run(cmd, capture_output=True, text=True)
+                        
+                        if result.returncode == 0:
+                            print(f"✓ {package} installed via {pm_name}")
+                            return True
+                    except Exception:
+                        continue
+        
+        print(f"❌ Could not install {package} via any package manager")
+        return False
+    
+    @staticmethod
+    def command_exists(command: str) -> bool:
+        """Check if a command exists in the system"""
+        try:
+            subprocess.run(["which", command], capture_output=True, check=False)
+            return True
+        except:
+            return False
+
+
+# Now import psutil after dependency check
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+    print("⚠️  psutil module not available. Some features will be limited.")
 
 # ======= Utility Functions =======
 class ConfigManager:
@@ -59,12 +198,15 @@ class ConfigManager:
         config = ConfigManager.load_config()
         info = {
             "file_path": CONFIG_FILE,
-            "file_size": f"{os.path.getsize(CONFIG_FILE):,} bytes",
-            "last_modified": datetime.fromtimestamp(
-                os.path.getmtime(CONFIG_FILE)
-            ).strftime('%Y-%m-%d %H:%M:%S'),
+            "file_size": f"{os.path.getsize(CONFIG_FILE):,} bytes" if os.path.exists(CONFIG_FILE) else "Not found",
             "config_keys": list(config.keys())
         }
+        
+        # Add last modified if file exists
+        if os.path.exists(CONFIG_FILE):
+            info["last_modified"] = datetime.fromtimestamp(
+                os.path.getmtime(CONFIG_FILE)
+            ).strftime('%Y-%m-%d %H:%M:%S')
         
         # Extract specific config details
         if "server" in config:
@@ -99,7 +241,8 @@ class ServiceManager:
             result = subprocess.run(
                 ["systemctl", "is-active", SERVICE_NAME],
                 capture_output=True,
-                text=True
+                text=True,
+                check=False
             )
             status["active"] = result.stdout.strip() == "active"
             
@@ -107,7 +250,8 @@ class ServiceManager:
             result = subprocess.run(
                 ["systemctl", "is-enabled", SERVICE_NAME],
                 capture_output=True,
-                text=True
+                text=True,
+                check=False
             )
             status["enabled"] = result.stdout.strip() == "enabled"
             
@@ -116,7 +260,8 @@ class ServiceManager:
                 result = subprocess.run(
                     ["systemctl", "show", SERVICE_NAME, "--property=MainPID"],
                     capture_output=True,
-                    text=True
+                    text=True,
+                    check=False
                 )
                 pid_line = result.stdout.strip()
                 if "MainPID=" in pid_line:
@@ -124,19 +269,24 @@ class ServiceManager:
                     if pid.isdigit() and int(pid) > 0:
                         status["pid"] = int(pid)
                         
-                        # Get process details
-                        try:
-                            process = psutil.Process(int(pid))
-                            status["uptime"] = str(datetime.now() - datetime.fromtimestamp(
-                                process.create_time()
-                            )).split(".")[0]
-                            status["memory_usage"] = f"{process.memory_info().rss / 1024 / 1024:.1f} MB"
-                            status["cpu_percent"] = f"{process.cpu_percent():.1f}%"
-                        except (psutil.NoSuchProcess, psutil.AccessDenied):
-                            pass
+                        # Get process details if psutil is available
+                        if PSUTIL_AVAILABLE:
+                            try:
+                                process = psutil.Process(int(pid))
+                                status["uptime"] = str(datetime.now() - datetime.fromtimestamp(
+                                    process.create_time()
+                                )).split(".")[0]
+                                status["memory_usage"] = f"{process.memory_info().rss / 1024 / 1024:.1f} MB"
+                                status["cpu_percent"] = f"{process.cpu_percent():.1f}%"
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                pass
+                        else:
+                            status["uptime"] = "psutil not available"
+                            status["memory_usage"] = "psutil not available"
+                            status["cpu_percent"] = "psutil not available"
             
             # Get last log entries
-            status["logs"] = ServiceManager.get_last_logs(10)
+            status["logs"] = ServiceManager.get_last_logs(5)
             
         except (subprocess.CalledProcessError, FileNotFoundError):
             pass
@@ -154,6 +304,8 @@ class ServiceManager:
                 logs = [log.strip() for log in logs]
             except (PermissionError, IOError):
                 logs = ["Unable to read log file"]
+        else:
+            logs = ["Log file not found"]
         return logs
     
     @staticmethod
@@ -192,12 +344,13 @@ class ServiceManager:
         try:
             subprocess.run(
                 ["systemctl", "start", SERVICE_NAME],
-                check=True
+                check=True,
+                capture_output=True
             )
             print("✓ Service started successfully\n")
             return True
-        except subprocess.CalledProcessError:
-            print("❌ Failed to start service")
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Failed to start service: {e.stderr}")
             return False
     
     @staticmethod
@@ -207,12 +360,13 @@ class ServiceManager:
         try:
             subprocess.run(
                 ["systemctl", "stop", SERVICE_NAME],
-                check=True
+                check=True,
+                capture_output=True
             )
             print("✓ Service stopped successfully\n")
             return True
-        except subprocess.CalledProcessError:
-            print("❌ Failed to stop service")
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Failed to stop service: {e.stderr}")
             return False
     
     @staticmethod
@@ -223,6 +377,8 @@ class ServiceManager:
         logs = ServiceManager.get_last_logs(count)
         for i, log in enumerate(logs, 1):
             print(f"{i:3d}. {log}")
+        if not logs:
+            print("No log entries found")
         print("=" * 60)
     
     @staticmethod
@@ -272,19 +428,21 @@ class NetworkManager:
         except:
             pass
         
-        # Get network interfaces
-        try:
-            interfaces = psutil.net_if_addrs()
-            for iface, addrs in interfaces.items():
-                iface_info = {"name": iface, "addresses": []}
-                for addr in addrs:
-                    if addr.family == socket.AF_INET:
-                        iface_info["addresses"].append(f"IPv4: {addr.address}/{addr.netmask}")
-                    elif addr.family == socket.AF_INET6:
-                        iface_info["addresses"].append(f"IPv6: {addr.address}")
-                info["interfaces"].append(iface_info)
-        except:
-            pass
+        # Get network interfaces if psutil is available
+        if PSUTIL_AVAILABLE:
+            try:
+                interfaces = psutil.net_if_addrs()
+                for iface, addrs in interfaces.items():
+                    iface_info = {"name": iface, "addresses": []}
+                    for addr in addrs:
+                        if addr.family == socket.AF_INET:
+                            iface_info["addresses"].append(f"IPv4: {addr.address}")
+                    if iface_info["addresses"]:  # Only add ifaces with IPv4 addresses
+                        info["interfaces"].append(iface_info)
+            except:
+                pass
+        else:
+            info["interfaces"] = [{"name": "psutil not available", "addresses": []}]
         
         return info
     
@@ -292,18 +450,47 @@ class NetworkManager:
     def check_ports() -> List[Dict[str, Any]]:
         """Check which ports are listening"""
         listening_ports = []
-        try:
-            connections = psutil.net_connections()
-            for conn in connections:
-                if conn.status == 'LISTEN' and conn.laddr:
-                    listening_ports.append({
-                        "port": conn.laddr.port,
-                        "address": conn.laddr.ip,
-                        "pid": conn.pid or "Unknown",
-                        "status": conn.status
-                    })
-        except:
-            pass
+        
+        if PSUTIL_AVAILABLE:
+            try:
+                connections = psutil.net_connections()
+                for conn in connections:
+                    if conn.status == 'LISTEN' and conn.laddr:
+                        listening_ports.append({
+                            "port": conn.laddr.port,
+                            "address": conn.laddr.ip,
+                            "pid": conn.pid or "Unknown",
+                            "status": conn.status
+                        })
+            except:
+                pass
+        else:
+            # Fallback method using netstat
+            try:
+                result = subprocess.run(
+                    ["netstat", "-tulpn"],
+                    capture_output=True,
+                    text=True,
+                    check=False
+                )
+                if result.returncode == 0:
+                    lines = result.stdout.split('\n')
+                    for line in lines:
+                        if 'LISTEN' in line:
+                            parts = line.split()
+                            if len(parts) >= 4:
+                                address_port = parts[3]
+                                if ':' in address_port:
+                                    ip_port = address_port.split(':')
+                                    if len(ip_port) == 2 and ip_port[1].isdigit():
+                                        listening_ports.append({
+                                            "port": int(ip_port[1]),
+                                            "address": ip_port[0] if ip_port[0] != '*' else "0.0.0.0",
+                                            "pid": parts[-1] if len(parts) >= 7 else "Unknown",
+                                            "status": "LISTEN"
+                                        })
+            except:
+                pass
         
         return listening_ports
 
@@ -440,7 +627,9 @@ class CLIInterface:
         print("=" * 60)
         print("            ZIVPN ACCOUNT MANAGER (ZIMAN) v2.0")
         print("=" * 60)
-        print("Comprehensive VPN Service Management Tool\n")
+        if not PSUTIL_AVAILABLE:
+            print("⚠️  Limited functionality mode (psutil not installed)")
+        print()
     
     @staticmethod
     def display_dashboard() -> None:
@@ -462,9 +651,12 @@ class CLIInterface:
         
         if status["active"]:
             print(f"PID:        {status['pid'] or 'Unknown'}")
-            print(f"Uptime:     {status['uptime'] or 'Unknown'}")
-            print(f"Memory:     {status['memory_usage'] or 'Unknown'}")
-            print(f"CPU Usage:  {status['cpu_percent'] or 'Unknown'}")
+            if status["uptime"]:
+                print(f"Uptime:     {status['uptime']}")
+            if status["memory_usage"]:
+                print(f"Memory:     {status['memory_usage']}")
+            if status["cpu_percent"]:
+                print(f"CPU Usage:  {status['cpu_percent']}")
         
         # Password Info
         pm = PasswordManager()
@@ -478,7 +670,8 @@ class CLIInterface:
         print(f"\n⚙️  CONFIGURATION")
         print("-" * 40)
         print(f"Config File: {config_info['file_path']}")
-        print(f"Last Modified: {config_info['last_modified']}")
+        if 'last_modified' in config_info:
+            print(f"Last Modified: {config_info['last_modified']}")
         if 'server_port' in config_info:
             print(f"Server Port: {config_info['server_port']}")
         
@@ -508,7 +701,9 @@ class CLIInterface:
         print("3. ⚙️  Service Control")
         print("4. 📋 View Logs")
         print("5. 🔧 Advanced Tools")
-        print("6. 🚪 Exit")
+        if not PSUTIL_AVAILABLE:
+            print("6. 📦 Install Missing Dependencies")
+        print("9. 🚪 Exit")
         print("-" * 40)
     
     @staticmethod
@@ -638,8 +833,10 @@ def main():
                     print("\n📡 Listening Ports:")
                     print("-" * 40)
                     ports = NetworkManager.check_ports()
-                    for port in ports:
+                    for port in ports[:10]:  # Show first 10 ports
                         print(f"Port {port['port']} on {port['address']} (PID: {port['pid']})")
+                    if len(ports) > 10:
+                        print(f"... and {len(ports) - 10} more ports")
                     input("\nPress Enter to continue...")
                 
                 elif sub_choice == "5":
@@ -682,9 +879,9 @@ def main():
                     print("\n🌐 NETWORK INTERFACES")
                     print("=" * 40)
                     network_info = NetworkManager.get_network_info()
-                    for iface in network_info["interfaces"]:
+                    for iface in network_info["interfaces"][:5]:  # Show first 5 interfaces
                         print(f"\nInterface: {iface['name']}")
-                        for addr in iface["addresses"]:
+                        for addr in iface["addresses"][:3]:  # Show first 3 addresses
                             print(f"  {addr}")
                     input("\nPress Enter to continue...")
                 
@@ -693,20 +890,22 @@ def main():
                     status = ServiceManager.get_service_status()
                     if status["active"]:
                         print("✓ Service is running")
-                        # Add more connectivity tests here
                     else:
                         print("❌ Service is not running")
                     input("\nPress Enter to continue...")
                 
                 elif sub_choice == "4":
                     # Backup configuration
-                    backup_file = f"{CONFIG_FILE}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                    try:
-                        import shutil
-                        shutil.copy2(CONFIG_FILE, backup_file)
-                        print(f"✓ Configuration backed up to: {backup_file}")
-                    except Exception as e:
-                        print(f"❌ Backup failed: {e}")
+                    if os.path.exists(CONFIG_FILE):
+                        backup_file = f"{CONFIG_FILE}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                        try:
+                            import shutil
+                            shutil.copy2(CONFIG_FILE, backup_file)
+                            print(f"✓ Configuration backed up to: {backup_file}")
+                        except Exception as e:
+                            print(f"❌ Backup failed: {e}")
+                    else:
+                        print("❌ Config file not found, cannot backup")
                     input("\nPress Enter to continue...")
                 
                 elif sub_choice == "5":
@@ -716,7 +915,19 @@ def main():
                     print("\n❌ Invalid option")
                     input("Press Enter to continue...")
         
-        elif choice == "6":
+        elif choice == "6" and not PSUTIL_AVAILABLE:
+            # Install dependencies
+            print("\n📦 Dependency Installation")
+            print("=" * 40)
+            print("This will install missing Python packages.")
+            print("You need root privileges for this operation.")
+            print()
+            response = input("Proceed with installation? (y/N): ").strip().lower()
+            if response in ['y', 'yes']:
+                DependencyManager.check_and_install()
+            input("\nPress Enter to continue...")
+        
+        elif choice == "9":
             print("\n👋 Thank you for using ZIMAN. Goodbye!")
             break
         
@@ -726,12 +937,8 @@ def main():
 
 
 if __name__ == "__main__":
-    # Check if running as root for full functionality
-    if os.geteuid() != 0:
-        print("⚠️  Warning: Running without root privileges")
-        print("Some features may be limited")
-        print("Consider running with 'sudo' for full functionality\n")
-        input("Press Enter to continue...")
+    # Check and install dependencies first
+    DependencyManager.check_and_install()
     
     try:
         main()
@@ -740,6 +947,4 @@ if __name__ == "__main__":
         sys.exit(0)
     except Exception as e:
         print(f"\n❌ Unexpected error: {e}")
-        import traceback
-        traceback.print_exc()
         sys.exit(1)
