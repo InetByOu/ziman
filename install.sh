@@ -2,7 +2,7 @@
 # Installer ZIMAN - ZIVPN Account Manager
 
 INSTALL_PATH="/usr/local/bin/ziman"
-INSTALL_PATH="/root/ziman"
+DOWNLOAD_PATH="/root/ziman"
 
 echo "[*] Menghapus instalasi ZIMAN lama jika ada..."
 rm -f "$INSTALL_PATH"
