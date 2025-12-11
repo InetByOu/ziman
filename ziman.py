@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 ZIVPN Account Manager (ZIMAN) - Enhanced Version with Auto Dependency Installation
 Professional CLI tool for managing ZIVPN with comprehensive service information
@@ -39,24 +40,24 @@ class DependencyManager:
         """Check for required packages and install if missing"""
         missing_packages = []
         
-        print("🔍 Checking dependencies...")
+        print("[*] Checking dependencies...")
         
         for package in DependencyManager.REQUIRED_PACKAGES:
             if not DependencyManager.is_package_installed(package):
                 missing_packages.append(package)
         
         if missing_packages:
-            print(f"⚠️  Missing packages: {', '.join(missing_packages)}")
+            print(f"[!] Missing packages: {', '.join(missing_packages)}")
             if DependencyManager.ask_permission():
                 DependencyManager.install_missing_packages(missing_packages)
             else:
-                print("❌ Cannot continue without required dependencies.")
+                print("[ERROR] Cannot continue without required dependencies.")
                 print("You can manually install them with:")
                 for pkg in missing_packages:
                     print(f"  pip3 install {pkg}")
                 sys.exit(1)
         else:
-            print("✓ All dependencies are installed")
+            print("[OK] All dependencies are installed")
     
     @staticmethod
     def is_package_installed(package_name: str) -> bool:
@@ -71,7 +72,7 @@ class DependencyManager:
     def ask_permission() -> bool:
         """Ask user for permission to install dependencies"""
         if os.geteuid() != 0:
-            print("\n⚠️  Root privileges required for package installation.")
+            print("\n[!] Root privileges required for package installation.")
             print("Please run this script with sudo or install manually.")
             return False
         
@@ -81,7 +82,7 @@ class DependencyManager:
     @staticmethod
     def install_missing_packages(packages: List[str]):
         """Install missing packages using pip"""
-        print("\n📦 Installing missing dependencies...")
+        print("\n[*] Installing missing dependencies...")
         
         for package in packages:
             print(f"Installing {package}...")
@@ -94,19 +95,19 @@ class DependencyManager:
                 )
                 
                 if result.returncode == 0:
-                    print(f"✓ {package} installed successfully via pip")
+                    print(f"[OK] {package} installed successfully via pip")
                 else:
                     # Try system package manager as fallback
-                    print(f"⚠️  Pip install failed, trying system package manager...")
+                    print(f"[!] Pip install failed, trying system package manager...")
                     DependencyManager.install_via_system_package_manager(package)
                     
             except Exception as e:
-                print(f"❌ Failed to install {package}: {e}")
+                print(f"[ERROR] Failed to install {package}: {e}")
                 print(f"Please install manually: sudo pip3 install {package}")
                 continue
         
-        print("\n✅ Dependency installation completed")
-        print("Restarting script...")
+        print("\n[OK] Dependency installation completed")
+        print("[*] Restarting script...")
         
         # Restart script with new dependencies
         os.execv(sys.executable, [sys.executable] + sys.argv)
@@ -134,12 +135,12 @@ class DependencyManager:
                         result = subprocess.run(cmd, capture_output=True, text=True)
                         
                         if result.returncode == 0:
-                            print(f"✓ {package} installed via {pm_name}")
+                            print(f"[OK] {package} installed via {pm_name}")
                             return True
                     except Exception:
                         continue
         
-        print(f"❌ Could not install {package} via any package manager")
+        print(f"[ERROR] Could not install {package} via any package manager")
         return False
     
     @staticmethod
@@ -158,7 +159,7 @@ try:
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
-    print("⚠️  psutil module not available. Some features will be limited.")
+    print("[!] psutil module not available. Some features will be limited.")
 
 # ======= Utility Functions =======
 class ConfigManager:
@@ -168,17 +169,17 @@ class ConfigManager:
     def load_config() -> Dict[str, Any]:
         """Load and parse the configuration file"""
         if not os.path.exists(CONFIG_FILE):
-            print(f"❌ Configuration file not found: {CONFIG_FILE}")
+            print(f"[ERROR] Configuration file not found: {CONFIG_FILE}")
             sys.exit(1)
             
         try:
             with open(CONFIG_FILE, "r") as f:
                 return json.load(f)
         except json.JSONDecodeError:
-            print(f"❌ Error parsing configuration file: {CONFIG_FILE}")
+            print(f"[ERROR] Error parsing configuration file: {CONFIG_FILE}")
             sys.exit(1)
         except PermissionError:
-            print(f"❌ Permission denied when reading: {CONFIG_FILE}")
+            print(f"[ERROR] Permission denied when reading: {CONFIG_FILE}")
             sys.exit(1)
     
     @staticmethod
@@ -187,9 +188,9 @@ class ConfigManager:
         try:
             with open(CONFIG_FILE, "w") as f:
                 json.dump(data, f, indent=2)
-            print("✓ Configuration saved successfully")
+            print("[OK] Configuration saved successfully")
         except PermissionError:
-            print(f"❌ Permission denied when writing: {CONFIG_FILE}")
+            print(f"[ERROR] Permission denied when writing: {CONFIG_FILE}")
             sys.exit(1)
     
     @staticmethod
@@ -311,7 +312,7 @@ class ServiceManager:
     @staticmethod
     def restart_service() -> bool:
         """Restart the ZIVPN service"""
-        print("\n🔄 Restarting ZIVPN service...")
+        print("\n[*] Restarting ZIVPN service...")
         try:
             result = subprocess.run(
                 ["systemctl", "restart", SERVICE_NAME],
@@ -319,60 +320,60 @@ class ServiceManager:
                 text=True,
                 check=True
             )
-            print("✓ Service restarted successfully\n")
+            print("[OK] Service restarted successfully\n")
             
             # Wait and verify service is running
             time.sleep(2)
             status = ServiceManager.get_service_status()
             if status["active"]:
-                print("✓ Service verified as active")
+                print("[OK] Service verified as active")
             else:
-                print("⚠️ Service may not be running properly")
+                print("[!] Service may not be running properly")
             
             return True
         except subprocess.CalledProcessError as e:
-            print(f"❌ Failed to restart service: {e.stderr}")
+            print(f"[ERROR] Failed to restart service: {e.stderr}")
             return False
         except FileNotFoundError:
-            print("❌ 'systemctl' command not found")
+            print("[ERROR] 'systemctl' command not found")
             return False
     
     @staticmethod
     def start_service() -> bool:
         """Start the ZIVPN service"""
-        print("\n▶️ Starting ZIVPN service...")
+        print("\n[*] Starting ZIVPN service...")
         try:
             subprocess.run(
                 ["systemctl", "start", SERVICE_NAME],
                 check=True,
                 capture_output=True
             )
-            print("✓ Service started successfully\n")
+            print("[OK] Service started successfully\n")
             return True
         except subprocess.CalledProcessError as e:
-            print(f"❌ Failed to start service: {e.stderr}")
+            print(f"[ERROR] Failed to start service: {e.stderr}")
             return False
     
     @staticmethod
     def stop_service() -> bool:
         """Stop the ZIVPN service"""
-        print("\n⏹️ Stopping ZIVPN service...")
+        print("\n[*] Stopping ZIVPN service...")
         try:
             subprocess.run(
                 ["systemctl", "stop", SERVICE_NAME],
                 check=True,
                 capture_output=True
             )
-            print("✓ Service stopped successfully\n")
+            print("[OK] Service stopped successfully\n")
             return True
         except subprocess.CalledProcessError as e:
-            print(f"❌ Failed to stop service: {e.stderr}")
+            print(f"[ERROR] Failed to stop service: {e.stderr}")
             return False
     
     @staticmethod
     def get_service_logs(count: int = 20) -> None:
         """Display service logs"""
-        print(f"\n📋 Last {count} log entries:")
+        print(f"\n[*] Last {count} log entries:")
         print("=" * 60)
         logs = ServiceManager.get_last_logs(count)
         for i, log in enumerate(logs, 1):
@@ -517,17 +518,17 @@ class PasswordManager:
         if status["active"]:
             ServiceManager.restart_service()
         else:
-            print("⚠️ Service is not active. Configuration saved but service not restarted.")
+            print("[!] Service is not active. Configuration saved but service not restarted.")
     
     def list_passwords(self) -> None:
         """Display all current passwords"""
         passwords = self.get_passwords()
         
         if not passwords:
-            print("\n📭 No passwords registered")
+            print("\n[!] No passwords registered")
             return
         
-        print("\n🔑 Registered Passwords:")
+        print("\n[*] Registered Passwords:")
         print("=" * 60)
         for idx, password in enumerate(passwords, 1):
             masked = password[:4] + "*" * (len(password) - 4) if len(password) > 4 else "****"
@@ -540,11 +541,11 @@ class PasswordManager:
             password = input("\nEnter new password: ").strip()
         
         if not password:
-            print("❌ Password cannot be empty")
+            print("[ERROR] Password cannot be empty")
             return
         
         if len(password) < 8:
-            print("⚠️  Warning: Password should be at least 8 characters")
+            print("[!] Warning: Password should be at least 8 characters")
             proceed = input("Continue anyway? (y/N): ").lower()
             if proceed != 'y':
                 print("Operation cancelled")
@@ -553,19 +554,19 @@ class PasswordManager:
         passwords = self.get_passwords()
         
         if password in passwords:
-            print(f"⚠️  Password '{password[:4]}...' already exists")
+            print(f"[!] Password '{password[:4]}...' already exists")
             return
         
         passwords.append(password)
         self.update_passwords(passwords)
-        print(f"✓ Password '{password[:4]}...' added successfully")
+        print(f"[OK] Password '{password[:4]}...' added successfully")
     
     def remove_password(self) -> None:
         """Remove a password by index"""
         passwords = self.get_passwords()
         
         if not passwords:
-            print("\n📭 No passwords to remove")
+            print("\n[!] No passwords to remove")
             return
         
         self.list_passwords()
@@ -573,15 +574,15 @@ class PasswordManager:
         try:
             idx = int(input("\nEnter password number to remove: ").strip())
             if idx < 1 or idx > len(passwords):
-                print("❌ Invalid number")
+                print("[ERROR] Invalid number")
                 return
         except ValueError:
-            print("❌ Please enter a valid number")
+            print("[ERROR] Please enter a valid number")
             return
         
         removed_password = passwords.pop(idx - 1)
         self.update_passwords(passwords)
-        print(f"✓ Password '{removed_password[:4]}...' removed successfully")
+        print(f"[OK] Password '{removed_password[:4]}...' removed successfully")
     
     @staticmethod
     def generate_password(length: int = 12) -> str:
@@ -628,7 +629,7 @@ class CLIInterface:
         print("            ZIVPN ACCOUNT MANAGER (ZIMAN) v2.0")
         print("=" * 60)
         if not PSUTIL_AVAILABLE:
-            print("⚠️  Limited functionality mode (psutil not installed)")
+            print("[!] Limited functionality mode (psutil not installed)")
         print()
     
     @staticmethod
@@ -641,13 +642,13 @@ class CLIInterface:
         
         # Service Status
         status = ServiceManager.get_service_status()
-        status_icon = "🟢" if status["active"] else "🔴"
-        enabled_icon = "✅" if status["enabled"] else "❌"
+        status_icon = "[ACTIVE]" if status["active"] else "[INACTIVE]"
+        enabled_icon = "[ENABLED]" if status["enabled"] else "[DISABLED]"
         
-        print(f"\n📊 SERVICE STATUS")
+        print(f"\n[*] SERVICE STATUS")
         print("-" * 40)
-        print(f"Status:     {status_icon} {'ACTIVE' if status['active'] else 'INACTIVE'}")
-        print(f"Auto-start: {enabled_icon} {'ENABLED' if status['enabled'] else 'DISABLED'}")
+        print(f"Status:     {status_icon}")
+        print(f"Auto-start: {enabled_icon}")
         
         if status["active"]:
             print(f"PID:        {status['pid'] or 'Unknown'}")
@@ -661,13 +662,13 @@ class CLIInterface:
         # Password Info
         pm = PasswordManager()
         passwords = pm.get_passwords()
-        print(f"\n🔐 AUTHENTICATION")
+        print(f"\n[*] AUTHENTICATION")
         print("-" * 40)
         print(f"Passwords:  {len(passwords)} registered")
         
         # Configuration Info
         config_info = ConfigManager.get_config_info()
-        print(f"\n⚙️  CONFIGURATION")
+        print(f"\n[*] CONFIGURATION")
         print("-" * 40)
         print(f"Config File: {config_info['file_path']}")
         if 'last_modified' in config_info:
@@ -677,14 +678,14 @@ class CLIInterface:
         
         # Connection Stats
         stats = ServiceManager.get_connection_stats()
-        print(f"\n📈 CONNECTION STATISTICS")
+        print(f"\n[*] CONNECTION STATISTICS")
         print("-" * 40)
         print(f"Active Connections: {stats['active_connections']}")
         print(f"Total Connections:  {stats['total_connections']}")
         
         # Network Info
         network_info = NetworkManager.get_network_info()
-        print(f"\n🌐 NETWORK INFORMATION")
+        print(f"\n[*] NETWORK INFORMATION")
         print("-" * 40)
         print(f"Hostname:   {network_info['hostname']}")
         print(f"IP Address: {network_info['ip_address']}")
@@ -696,20 +697,20 @@ class CLIInterface:
         """Display main menu"""
         print("\nMAIN MENU")
         print("-" * 40)
-        print("1. 📊 Service Dashboard")
-        print("2. 📝 Password Management")
-        print("3. ⚙️  Service Control")
-        print("4. 📋 View Logs")
-        print("5. 🔧 Advanced Tools")
+        print("1. Service Dashboard")
+        print("2. Password Management")
+        print("3. Service Control")
+        print("4. View Logs")
+        print("5. Advanced Tools")
         if not PSUTIL_AVAILABLE:
-            print("6. 📦 Install Missing Dependencies")
-        print("9. 🚪 Exit")
+            print("6. Install Missing Dependencies")
+        print("9. Exit")
         print("-" * 40)
     
     @staticmethod
     def display_password_menu() -> None:
         """Display password management menu"""
-        print("\n🔐 PASSWORD MANAGEMENT")
+        print("\n[*] PASSWORD MANAGEMENT")
         print("-" * 40)
         print("1. Add Manual Password")
         print("2. Generate Secure Password")
@@ -724,7 +725,7 @@ class CLIInterface:
         status = ServiceManager.get_service_status()
         status_text = "ACTIVE" if status["active"] else "INACTIVE"
         
-        print(f"\n⚙️  SERVICE CONTROL [Status: {status_text}]")
+        print(f"\n[*] SERVICE CONTROL [Status: {status_text}]")
         print("-" * 40)
         print("1. Start Service")
         print("2. Stop Service")
@@ -736,7 +737,7 @@ class CLIInterface:
     @staticmethod
     def display_advanced_menu() -> None:
         """Display advanced tools menu"""
-        print("\n🔧 ADVANCED TOOLS")
+        print("\n[*] ADVANCED TOOLS")
         print("-" * 40)
         print("1. View Configuration Details")
         print("2. Check Network Interfaces")
@@ -782,13 +783,13 @@ def main():
                     try:
                         length = int(input("\nPassword length (default: 12): ").strip() or "12")
                         if length < 8:
-                            print("⚠️  Minimum length is 8 characters")
+                            print("[!] Minimum length is 8 characters")
                             length = 8
                         elif length > 32:
-                            print("⚠️  Maximum length is 32 characters")
+                            print("[!] Maximum length is 32 characters")
                             length = 32
                     except ValueError:
-                        print("⚠️  Using default length: 12")
+                        print("[!] Using default length: 12")
                         length = 12
                     
                     password = PasswordManager.generate_password(length)
@@ -807,7 +808,7 @@ def main():
                     break
                 
                 else:
-                    print("\n❌ Invalid option")
+                    print("\n[ERROR] Invalid option")
                     input("Press Enter to continue...")
         
         elif choice == "3":
@@ -830,7 +831,7 @@ def main():
                     input("\nPress Enter to continue...")
                 
                 elif sub_choice == "4":
-                    print("\n📡 Listening Ports:")
+                    print("\n[*] Listening Ports:")
                     print("-" * 40)
                     ports = NetworkManager.check_ports()
                     for port in ports[:10]:  # Show first 10 ports
@@ -843,7 +844,7 @@ def main():
                     break
                 
                 else:
-                    print("\n❌ Invalid option")
+                    print("\n[ERROR] Invalid option")
                     input("Press Enter to continue...")
         
         elif choice == "4":
@@ -851,10 +852,10 @@ def main():
             try:
                 count = int(input("\nNumber of log entries to view (default: 20): ").strip() or "20")
                 if count < 1 or count > 100:
-                    print("⚠️  Showing 20 entries (1-100 allowed)")
+                    print("[!] Showing 20 entries (1-100 allowed)")
                     count = 20
             except ValueError:
-                print("⚠️  Showing 20 entries")
+                print("[!] Showing 20 entries")
                 count = 20
             
             ServiceManager.get_service_logs(count)
@@ -868,7 +869,7 @@ def main():
                 sub_choice = cli.get_choice()
                 
                 if sub_choice == "1":
-                    print("\n⚙️  CONFIGURATION DETAILS")
+                    print("\n[*] CONFIGURATION DETAILS")
                     print("=" * 40)
                     config_info = ConfigManager.get_config_info()
                     for key, value in config_info.items():
@@ -876,7 +877,7 @@ def main():
                     input("\nPress Enter to continue...")
                 
                 elif sub_choice == "2":
-                    print("\n🌐 NETWORK INTERFACES")
+                    print("\n[*] NETWORK INTERFACES")
                     print("=" * 40)
                     network_info = NetworkManager.get_network_info()
                     for iface in network_info["interfaces"][:5]:  # Show first 5 interfaces
@@ -886,12 +887,12 @@ def main():
                     input("\nPress Enter to continue...")
                 
                 elif sub_choice == "3":
-                    print("\n🔌 Testing Service Connectivity...")
+                    print("\n[*] Testing Service Connectivity...")
                     status = ServiceManager.get_service_status()
                     if status["active"]:
-                        print("✓ Service is running")
+                        print("[OK] Service is running")
                     else:
-                        print("❌ Service is not running")
+                        print("[ERROR] Service is not running")
                     input("\nPress Enter to continue...")
                 
                 elif sub_choice == "4":
@@ -901,23 +902,23 @@ def main():
                         try:
                             import shutil
                             shutil.copy2(CONFIG_FILE, backup_file)
-                            print(f"✓ Configuration backed up to: {backup_file}")
+                            print(f"[OK] Configuration backed up to: {backup_file}")
                         except Exception as e:
-                            print(f"❌ Backup failed: {e}")
+                            print(f"[ERROR] Backup failed: {e}")
                     else:
-                        print("❌ Config file not found, cannot backup")
+                        print("[ERROR] Config file not found, cannot backup")
                     input("\nPress Enter to continue...")
                 
                 elif sub_choice == "5":
                     break
                 
                 else:
-                    print("\n❌ Invalid option")
+                    print("\n[ERROR] Invalid option")
                     input("Press Enter to continue...")
         
         elif choice == "6" and not PSUTIL_AVAILABLE:
             # Install dependencies
-            print("\n📦 Dependency Installation")
+            print("\n[*] Dependency Installation")
             print("=" * 40)
             print("This will install missing Python packages.")
             print("You need root privileges for this operation.")
@@ -928,11 +929,11 @@ def main():
             input("\nPress Enter to continue...")
         
         elif choice == "9":
-            print("\n👋 Thank you for using ZIMAN. Goodbye!")
+            print("\n[*] Thank you for using ZIMAN. Goodbye!")
             break
         
         else:
-            print("\n❌ Invalid option")
+            print("\n[ERROR] Invalid option")
             input("Press Enter to continue...")
 
 
@@ -943,8 +944,8 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n⚠️  Operation cancelled by user")
+        print("\n\n[!] Operation cancelled by user")
         sys.exit(0)
     except Exception as e:
-        print(f"\n❌ Unexpected error: {e}")
+        print(f"\n[ERROR] Unexpected error: {e}")
         sys.exit(1)
