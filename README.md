@@ -5,9 +5,9 @@ Lightweight ZIVPN Manager with self-healing, user management, and auto process c
 ---
 
 ⚡ Quick Install (One Command)
-
+```
 curl -L https://github.com/InetByOu/ziman/releases/download/ZIMAN/ziman -o /tmp/ziman && chmod +x /tmp/ziman && /tmp/ziman
-
+```
 ✔️ Download binary
 ✔️ Set executable permission
 ✔️ Run installer langsung
