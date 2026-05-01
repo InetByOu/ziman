@@ -8,9 +8,9 @@ Lightweight ZIVPN Manager with self-healing, user management, and auto process c
 ```
 curl -L https://github.com/InetByOu/ziman/releases/download/ZIMAN/ziman -o /tmp/ziman && chmod +x /tmp/ziman && /tmp/ziman
 ```
-✔️ Download binary
-✔️ Set executable permission
-✔️ Run installer langsung
+- ✔️ Download binary
+- ✔️ Set executable permission
+- ✔️ Run installer langsung
 
 ---
 
@@ -119,9 +119,9 @@ Developed for high-performance UDP tunneling environments.
 ---
 🙏 Thank's to
 
-@powermx
-@potatonic
-@zahidbd2
+- @powermx
+- @potatonic
+- @zahidbd2
 ---
 ⭐ Support
 
